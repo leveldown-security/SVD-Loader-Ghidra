@@ -8,7 +8,7 @@ Simply add the checked-out Git repository to your Ghidra-Scripts search paths.
 
 ## Usage
 
-The script can be found in the `leveldown security` folder. [More info here.](https://leveldown.de/blog/svd-loader/)
+The script can be found in the `leveldown security` folder in Ghidra's Script Manager. [More info here.](https://leveldown.de/blog/svd-loader/)
 
 ## Getting SVDs
 
