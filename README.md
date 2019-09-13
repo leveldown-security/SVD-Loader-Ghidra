@@ -10,7 +10,7 @@ Simply add the checked-out Git repository to your Ghidra-Scripts search paths.
 
 The script can be found in the `leveldown security` folder. [More info here.](https://leveldown.de/blog/svd-loader/)
 
-## Getting more SVDs
+## Getting SVDs
 
 - [cmsis-svd contains over 650 SVDs](https://github.com/posborne/cmsis-svd/)
 - [Keil Software Packs](https://www.keil.com/pack)
