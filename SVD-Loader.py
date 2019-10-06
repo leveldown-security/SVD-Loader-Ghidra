@@ -12,11 +12,16 @@
 from cmsis_svd.parser import SVDParser
 from ghidra.program.model.data import Structure, StructureDataType, UnsignedIntegerDataType, DataTypeConflictHandler
 from ghidra.program.model.data import UnsignedShortDataType, ByteDataType, UnsignedLongLongDataType
-from ghidra.app.cmd.memory import AddMemoryBlockCmd
 from ghidra.program.model.mem import MemoryBlockType
 from ghidra.program.model.address import AddressFactory
 from ghidra.program.model.symbol import SourceType
 from ghidra.program.model.mem import MemoryConflictException
+
+# Handle GHidra 9.0 -> 9.1 API changes gracefully
+try:
+    from ghidra.app.cmd.memory import AddMemoryBlockCmd
+except ImportError:
+    from ghidra.app.cmd.memory import AddInitializedMemoryBlockCmd
 
 class MemoryRegion:
 	def __init__(self, name, start, end):
