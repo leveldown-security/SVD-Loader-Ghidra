@@ -16,7 +16,6 @@ from ghidra.program.model.mem import MemoryBlockType
 from ghidra.program.model.address import AddressFactory
 from ghidra.program.model.symbol import SourceType
 from ghidra.program.model.mem import MemoryConflictException
-from ghidra.program.model.util import CodeUnitInsertionException
 
 class MemoryRegion:
 	def __init__(self, name, start, end):
@@ -97,7 +96,6 @@ print("Generating memory regions...")
 # First, we need to generate a list of memory regions.
 # This is because some SVD files have overlapping peripherals...
 memory_regions = []
-alt_peripherals = []
 for peripheral in peripherals:
 	start = peripheral.base_address
 	length = peripheral.address_block.offset + peripheral.address_block.size
@@ -164,10 +162,10 @@ for peripheral in peripherals:
 
 	dtm.addDataType(peripheral_struct, DataTypeConflictHandler.REPLACE_HANDLER)
 
-	try:
+	# Some SVDs, namely Nordic's, peripherals may have alternatives with the same base address
+	# In that case, we can't create a data listing at the same location multiple times
+	if not listing.getDataAt(addr).isDefined():
 		listing.createData(addr, peripheral_struct, False)
-	except CodeUnitInsertionException:
-		continue
 
 	symtbl.createLabel(addr,
 					peripheral.name,
