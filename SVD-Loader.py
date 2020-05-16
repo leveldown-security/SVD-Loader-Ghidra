@@ -162,11 +162,14 @@ for peripheral in peripherals:
 
 	dtm.addDataType(peripheral_struct, DataTypeConflictHandler.REPLACE_HANDLER)
 
-	listing.createData(addr, peripheral_struct, False)
+	# Some SVDs, namely Nordic's, peripherals may have alternatives with the same base address
+	# In that case, we can't create a data listing at the same location multiple times
+	if not listing.getDataAt(addr).isDefined():
+		listing.createData(addr, peripheral_struct, False)
 
 	symtbl.createLabel(addr,
 					peripheral.name,
 					namespace,
-					SourceType.USER_DEFINED );
+					SourceType.USER_DEFINED )
 	# except:
 	# 	print("\t\tFailed to generate peripheral " + peripheral.name)
