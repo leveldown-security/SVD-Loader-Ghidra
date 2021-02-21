@@ -9,6 +9,8 @@
 # https://leveldown.de/blog/svd-loader/
 # License: GPLv3
 
+import sys
+
 from cmsis_svd.parser import SVDParser
 from ghidra.program.model.data import Structure, StructureDataType, UnsignedIntegerDataType, DataTypeConflictHandler
 from ghidra.program.model.data import UnsignedShortDataType, ByteDataType, UnsignedLongLongDataType
