@@ -95,9 +95,8 @@ default_register_size = parser.get_device().size
 
 # Not all SVDs contain these fields
 if cpu_type and not cpu_type.startswith("CM"):
-	print("Currently only Cortex-M CPUs are supported.")
+	print("Currently only Cortex-M CPUs are supported, so this might not work...")
 	print("Supplied CPU type was: " + cpu_type)
-	sys.exit(1)
 
 if cpu_endian and cpu_endian != "little":
 	print("Currently only little endian CPUs are supported.")
