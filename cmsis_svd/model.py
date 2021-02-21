@@ -552,7 +552,10 @@ class SVDDevice(SVDElement):
         self.version = version
         self.description = description
         self.cpu = cpu
-        self.address_unit_bits = _check_type(address_unit_bits, int)
+        if address_unit_bits is None:
+            self.address_unit_bits = 32
+        else:
+            self.address_unit_bits = _check_type(address_unit_bits, int)
         self.width = _check_type(width, int)
         self.peripherals = peripherals
         self.size = size  # Defines the default bit-width of any register contained in the device (implicit inheritance).
