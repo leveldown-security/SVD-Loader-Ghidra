@@ -188,12 +188,11 @@ for peripheral in peripherals:
 
 
 	dtm.addDataType(peripheral_struct, DataTypeConflictHandler.REPLACE_HANDLER)
-
-	listing.createData(addr, peripheral_struct, False)
-
 	symtbl.createLabel(addr,
 					peripheral.name,
 					namespace,
-					SourceType.USER_DEFINED );
-	# except:
-	# 	print("\t\tFailed to generate peripheral " + peripheral.name)
+					SourceType.USER_DEFINED)
+	try:
+		listing.createData(addr, peripheral_struct, False)
+	except:
+		print("\t\tFailed to generate peripheral " + peripheral.name)
