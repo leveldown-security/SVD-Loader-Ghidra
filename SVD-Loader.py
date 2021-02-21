@@ -1,6 +1,5 @@
 # Load specified SVD and generate peripheral memory maps & structures.
-#@author Thomas Roth thomas.roth@leveldown.de
-#@category leveldown security
+#@author Thomas Roth <thomas.roth@leveldown.de>, Ryan Pavlik <ryan.pavlik@gmail.com>
 #@keybinding 
 #@menupath 
 #@toolbar
