@@ -18,35 +18,59 @@ from ghidra.program.model.symbol import SourceType
 from ghidra.program.model.mem import MemoryConflictException
 
 class MemoryRegion:
-	def __init__(self, name, start, end):
-		self.name = name
+	def __init__(self, name, start, end, name_parts=None):
 		self.start = start
 		self.end = end
+		if name_parts:
+			self.name_parts = name_parts
+		else:
+			self.name_parts = [name]
+
+		assert(self.start < self.end)
+
+	@property
+	def name(self):
+		return "_".join(self.name_parts)
 
 	def length(self):
 		return self.end - self.start
 
-def reduce_memory_regions(regions):
-	for i in range(len(regions)):
-		r1 = regions[i]
-		for j in range(len(regions)):
-			r2 = regions[j]
-			# Skip self
-			if i == j:
-				continue
-			if r1.end < r2.start:
-				continue
-			if r2.end < r1.start:
-				continue
+	def __lt__(self, other):
+		return self.start < other.start
 
-			# We are overlapping, generate larger area and call
-			# reduce_memory_regions again.
-			regions[i].start = min(r1.start, r2.start)
-			regions[i].end = max(r1.end, r2.end)
-			regions[i].name = r1.name + "_" + r2.name
-			regions.remove(regions[j])
-			return reduce_memory_regions(regions)
-	return regions
+	def combine_with(self, other):
+		return MemoryRegion(None,
+			min(self.start, other.start),
+			max(self.end, other.end),
+			self.name_parts + other.name_parts)
+
+	def combine_from(self, other):
+		self.start = min(self.start, other.start)
+		self.end = max(self.end, other.end)
+		self.name_parts.extend(other.name_parts)
+	
+	def overlaps(self, other):
+		if other.end < self.start:
+			return False
+		if self.end < other.start:
+			return False
+		return True
+	
+	def __str__(self):
+		return "{}({}:{})".format(self.name, hex(self.start), hex(self.end))
+
+def reduce_memory_regions(regions):
+	regions.sort()
+	print("Original regions: " + ", ".join(str(x) for x in regions))
+	result = [regions[0]]
+	for region in regions[1:]:
+		if region.overlaps(result[-1]):
+			result[-1].combine_from(region)
+		else:
+			result.append(region)
+
+	print("Reduced regions: " + ", ".join(str(x) for x in result))
+	return result
 
 def calculate_peripheral_size(peripheral, default_register_size):
 	size = 0
