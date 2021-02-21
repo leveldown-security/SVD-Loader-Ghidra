@@ -127,8 +127,10 @@ for peripheral in peripherals:
 	memory_regions.append(MemoryRegion(peripheral.name, start, end))
 memory_regions = reduce_memory_regions(memory_regions)
 
+print("Generating memory blocks...")
 # Create memory blocks:
 for r in memory_regions:
+	print("\t" + str(r))
 	try:
 		addr = space.getAddress(r.start)
 		length = r.length()
@@ -164,6 +166,7 @@ for peripheral in peripherals:
 
 	peripheral_start = peripheral.base_address
 	peripheral_end = peripheral_start + length
+	print("\t\t{}:{}".format(hex(peripheral_start), hex(peripheral_end)))
 
 	for register in peripheral.registers:
 		register_size = default_register_size if not register._size else register._size
@@ -177,6 +180,7 @@ for peripheral in peripherals:
 		elif rs == 8:
 			r_type = UnsignedLongLongDataType()
 
+		print("\t\t\t{}({}:{})".format(register.name, hex(register.address_offset), hex(register.address_offset + register_size/8)))
 		peripheral_struct.replaceAtOffset(register.address_offset, r_type, register_size/8, register.name, register.description)
 
 
