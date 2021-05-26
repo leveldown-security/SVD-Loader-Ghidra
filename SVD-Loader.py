@@ -17,6 +17,8 @@ from ghidra.program.model.address import AddressFactory
 from ghidra.program.model.symbol import SourceType
 from ghidra.program.model.mem import MemoryConflictException
 
+default_register_size=32
+
 class MemoryRegion:
 	def __init__(self, name, start, end):
 		self.name = name
@@ -54,6 +56,25 @@ def calculate_peripheral_size(peripheral, default_register_size):
 		register_size = default_register_size if not register._size else register._size
 		size = max(size, register.address_offset + register_size/8)
 	return size
+
+def addRegisters(peripheral_blk_struct, peripheral, min_size):
+	for register in peripheral.registers:
+				if (register._size>=min_size):
+					print("register {:s} {:02X}".format(register.name, register._size))
+					# check if the register is a member of the current addressBlock
+					if ((register.address_offset>=adrBlock.offset) and (register.address_offset<adrBlock.offset+adrBlock.size) ):
+						register_size = 32 if not register._size else register._size
+						r_type = UnsignedIntegerDataType()
+						rs = register_size // 8
+						if rs == 1:
+							r_type = ByteDataType()
+						elif rs == 2:
+							r_type = UnsignedShortDataType()
+						elif rs == 8:
+							r_type = UnsignedLongLongDataType()
+						
+						# please note: The address for registering here must be relative to the addressBlock address/offset
+						peripheral_blk_struct.replaceAtOffset(register.address_offset-adrBlock.offset, r_type, register_size//8, register.name, register.description)
 
 
 svd_file = askFile("Choose SVD file", "Load SVD File")
@@ -116,6 +137,7 @@ for r in memory_regions:
 		addr = space.getAddress(r.start)
 		length = r.length()
 
+		print("{:s} {:s} {:08X}".format(r.name, addr, length))
 		t = currentProgram.memory.createUninitializedBlock(r.name, addr, length, False)
 		t.setRead(True)
 		t.setWrite(True)
@@ -135,51 +157,41 @@ for peripheral in peripherals:
 	if(len(peripheral.registers) == 0):
 		print("\t\tNo registers.")
 		continue
-
-	if((not peripheral.address_blocks)or(len(peripheral.address_blocks) == 0)):
+	if(not peripheral.address_blocks):
 		continue
-
+	if (len(peripheral.address_blocks) == 0):
+		continue
 	try:
 	# Iterage through addressBlock of a Peripheral.
 	# For each addressBlock create a pripheral strcuture with the name of the peripheral and the size of the actual addressBlock.
 	# For each addessBlock iterate through the registers of the peripheral and add a register, if the offset mathes to the address range of the current addressBlock.
 	# Enter the addressBlock specific peripheral to Ghidra.
 	# Since all these addressBlock-peripheral entries share the same same, they pop up as one name in Ghidra.
-	
-		length = calculate_peripheral_size(peripheral, default_register_size)
+		length = calculate_peripheral_size(peripheral, 32)
 		# Generate structure for the peripheral
 		peripheral_struct = StructureDataType(peripheral.name, length)
 		dtm.addDataType(peripheral_struct, DataTypeConflictHandler.REPLACE_HANDLER)
 
 		baseAdr=peripheral.base_address
+
 		for adrBlock in peripheral.address_blocks:
 			addr = space.getAddress(baseAdr+adrBlock.offset)
 			# Generate peripheral-strcuture for an address block
 			peripheral_blk_struct = StructureDataType(peripheral.name, adrBlock.size)
 			# iterate through all registers in the peripheral and add it to the addressBlock-peripheral structure
 			# when the register is part of this addressBlock.
-			for register in peripheral.registers:
-				# check if the register is a member of the current addressBlock
-				if ((register.address_offset>=adrBlock.offset) and (register.address_offset<adrBlock.offset+adrBlock.size) ):
-					register_size = default_register_size if not register._size else register._size
-
-					r_type = UnsignedIntegerDataType()
-					rs = register_size / 8
-					if rs == 1:
-						r_type = ByteDataType()
-					elif rs == 2:
-						r_type = UnsignedShortDataType()
-					elif rs == 8:
-						r_type = UnsignedLongLongDataType()
-					
-					# please note: The address for registering here must be relative to the addressBlock address/offset
-					peripheral_blk_struct.replaceAtOffset(register.address_offset-adrBlock.offset, r_type, register_size/8, register.name, register.description)
-			#add this addressBlock-peripheral
-			listing.createData(addr, peripheral_blk_struct, False)
-
+			addRegisters(peripheral_blk_struct, peripheral, 32)
+			addRegisters(peripheral_blk_struct, peripheral, 24)
+			addRegisters(peripheral_blk_struct, peripheral, 16)
+			addRegisters(peripheral_blk_struct, peripheral, 8)
+			try:
+				listing.createData(addr, peripheral_blk_struct, True)
+			except:
+				continue
 		symtbl.createLabel(addr,
 						peripheral.name,
 						namespace,
 						SourceType.USER_DEFINED );
-	except:
+	except BaseException as e:
 		print("\t\tFailed to generate peripheral " + peripheral.name)
+		print e.message
