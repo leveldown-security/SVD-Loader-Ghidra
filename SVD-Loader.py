@@ -100,12 +100,13 @@ memory_regions = []
 for peripheral in peripherals:
 	base = peripheral.base_address
 	blknum=1
-	for address_block in peripheral.address_blocks:
-		start=base+address_block.offset
-		length=address_block.size
-		memRegionName="{:s}:AdrBlk#{:02X}".format(peripheral.name, blknum)
-		memory_regions.append(MemoryRegion(memRegionName, start, start+length))
-		blknum=blknum+1
+	if (peripheral.address_blocks):
+		for address_block in peripheral.address_blocks:
+			start=base+address_block.offset
+			length=address_block.size
+			memRegionName="{:s}:AdrBlk#{:02X}".format(peripheral.name, blknum)
+			memory_regions.append(MemoryRegion(memRegionName, start, start+length))
+			blknum=blknum+1
 
 memory_regions = reduce_memory_regions(memory_regions)
 
@@ -134,8 +135,8 @@ for peripheral in peripherals:
 	if(len(peripheral.registers) == 0):
 		print("\t\tNo registers.")
 		continue
-	if(len(peripheral.address_blocks) == 0):
-		print("\t\tNo address blocks.")
+
+	if((not peripheral.address_blocks)or(len(peripheral.address_blocks) == 0)):
 		continue
 
 	try:
