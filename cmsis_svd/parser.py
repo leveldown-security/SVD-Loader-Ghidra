@@ -329,11 +329,11 @@ class SVDParser(object):
         interrupts = interrupts if interrupts else None
 
         # parse address block if any
-        address_block_nodes = peripheral_node.findall('./addressBlock')
-        if address_block_nodes:
-            address_block = self._parse_address_block(address_block_nodes[0])
-        else:
-            address_block = None
+        address_blocks = []
+        for address_block_node in peripheral_node.findall('./addressBlock'):
+            address_blocks.append(self._parse_address_block(address_block_node))
+        address_blocks = address_blocks if address_blocks else None
+        
 
         return SVDPeripheral(
             # <name>identifierType</name>
@@ -371,7 +371,7 @@ class SVDParser(object):
             #     <usage>usageType</usage>
             #     <protection>protectionStringType</protection>
             # </addressBlock>
-            address_block=address_block,
+            address_blocks=address_blocks,
 
             # <interrupt>
             #     <name>identifierType</name>
