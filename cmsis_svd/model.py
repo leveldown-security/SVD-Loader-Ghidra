@@ -514,6 +514,12 @@ class SVDPeripheral(SVDElement):
             regs.extend(cluster.registers)
         return regs
 
+    @property
+    def address_block(self):
+        if self._address_block:
+            return self._address_block
+        return self._lookup_possibly_derived_attribute('address_block')
+
     def get_derived_from(self):
         if self._derived_from is None:
             return None
