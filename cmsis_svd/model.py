@@ -108,6 +108,14 @@ class SVDElement(object):
     def get_derived_from(self):
         pass  # override in children
 
+    def _get_derived_from(self, entities, name):
+        for peripheral in entities:
+            if peripheral.name == name:
+                if peripheral.derived_from:
+                    return self._get_derived_from(entities, peripheral.derived_from)
+                return peripheral
+        raise KeyError("%s not found" % name)
+
     def to_dict(self):
         # This is a little convoluted but it works and ensures a
         # json-compatible dictionary representation (at the cost of
@@ -506,13 +514,19 @@ class SVDPeripheral(SVDElement):
             regs.extend(cluster.registers)
         return regs
 
+    @property
+    def address_block(self):
+        if self._address_block:
+            return self._address_block
+        return self._lookup_possibly_derived_attribute('address_block')
+
     def get_derived_from(self):
         if self._derived_from is None:
             return None
 
         # find the peripheral with this name in the tree
         try:
-            return [p for p in self.parent.peripherals if p.name == self._derived_from][0]
+            return self._get_derived_from(self.parent.peripherals, self._derived_from)
         except IndexError:
             return None
 
