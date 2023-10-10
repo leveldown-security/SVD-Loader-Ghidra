@@ -1,5 +1,6 @@
 # Load specified SVD and generate peripheral memory maps & structures.
-#@author Thomas Roth <thomas.roth@leveldown.de>, Ryan Pavlik <ryan.pavlik@gmail.com>
+#@author Thomas Roth thomas.roth@leveldown.de
+#@category leveldown security
 #@keybinding 
 #@menupath 
 #@toolbar
@@ -7,8 +8,6 @@
 # More information:
 # https://leveldown.de/blog/svd-loader/
 # License: GPLv3
-
-import sys
 
 from cmsis_svd.parser import SVDParser
 from ghidra.program.model.data import Structure, StructureDataType, UnsignedIntegerDataType, DataTypeConflictHandler
@@ -18,60 +17,38 @@ from ghidra.program.model.address import AddressFactory
 from ghidra.program.model.symbol import SourceType
 from ghidra.program.model.mem import MemoryConflictException
 
+default_register_size=32
+
 class MemoryRegion:
-	def __init__(self, name, start, end, name_parts=None):
+	def __init__(self, name, start, end):
+		self.name = name
 		self.start = start
 		self.end = end
-		if name_parts:
-			self.name_parts = name_parts
-		else:
-			self.name_parts = [name]
-
-		assert(self.start < self.end)
-
-	@property
-	def name(self):
-		return "_".join(self.name_parts)
 
 	def length(self):
 		return self.end - self.start
 
-	def __lt__(self, other):
-		return self.start < other.start
-
-	def combine_with(self, other):
-		return MemoryRegion(None,
-			min(self.start, other.start),
-			max(self.end, other.end),
-			self.name_parts + other.name_parts)
-
-	def combine_from(self, other):
-		self.start = min(self.start, other.start)
-		self.end = max(self.end, other.end)
-		self.name_parts.extend(other.name_parts)
-	
-	def overlaps(self, other):
-		if other.end < self.start:
-			return False
-		if self.end < other.start:
-			return False
-		return True
-	
-	def __str__(self):
-		return "{}({}:{})".format(self.name, hex(self.start), hex(self.end))
-
 def reduce_memory_regions(regions):
-	regions.sort()
-	print("Original regions: " + ", ".join(str(x) for x in regions))
-	result = [regions[0]]
-	for region in regions[1:]:
-		if region.overlaps(result[-1]):
-			result[-1].combine_from(region)
-		else:
-			result.append(region)
+	for i in range(len(regions)):
+		r1 = regions[i]
+		for j in range(len(regions)):
+			r2 = regions[j]
+			# Skip self
+			if i == j:
+				continue
+			if r1.end < r2.start:
+				continue
+			if r2.end < r1.start:
+				continue
 
-	print("Reduced regions: " + ", ".join(str(x) for x in result))
-	return result
+			# We are overlapping, generate larger area and call
+			# reduce_memory_regions again.
+			regions[i].start = min(r1.start, r2.start)
+			regions[i].end = max(r1.end, r2.end)
+			regions[i].name = r1.name + "_" + r2.name
+			regions.remove(regions[j])
+			return reduce_memory_regions(regions)
+	return regions
 
 def calculate_peripheral_size(peripheral, default_register_size):
 	size = 0
@@ -79,6 +56,25 @@ def calculate_peripheral_size(peripheral, default_register_size):
 		register_size = default_register_size if not register._size else register._size
 		size = max(size, register.address_offset + register_size/8)
 	return size
+
+def addRegisters(peripheral_blk_struct, peripheral, min_size):
+	for register in peripheral.registers:
+				if (register._size>=min_size):
+					print("register {:s} {:02X}".format(register.name, register._size))
+					# check if the register is a member of the current addressBlock
+					if ((register.address_offset>=adrBlock.offset) and (register.address_offset<adrBlock.offset+adrBlock.size) ):
+						register_size = 32 if not register._size else register._size
+						r_type = UnsignedIntegerDataType()
+						rs = register_size // 8
+						if rs == 1:
+							r_type = ByteDataType()
+						elif rs == 2:
+							r_type = UnsignedShortDataType()
+						elif rs == 8:
+							r_type = UnsignedLongLongDataType()
+						
+						# please note: The address for registering here must be relative to the addressBlock address/offset
+						peripheral_blk_struct.replaceAtOffset(register.address_offset-adrBlock.offset, r_type, register_size//8, register.name, register.description)
 
 
 svd_file = askFile("Choose SVD file", "Load SVD File")
@@ -96,8 +92,9 @@ default_register_size = parser.get_device().size
 
 # Not all SVDs contain these fields
 if cpu_type and not cpu_type.startswith("CM"):
-	print("Currently only Cortex-M CPUs are supported, so this might not work...")
+	print("Currently only Cortex-M CPUs are supported.")
 	print("Supplied CPU type was: " + cpu_type)
+	sys.exit(1)
 
 if cpu_endian and cpu_endian != "little":
 	print("Currently only little endian CPUs are supported.")
@@ -105,7 +102,7 @@ if cpu_endian and cpu_endian != "little":
 	sys.exit(1)
 
 # Get things we need
-listing = currentProgram.getListing()
+listing = currentProgram.getListing()	
 symtbl = currentProgram.getSymbolTable()
 dtm = currentProgram.getDataTypeManager()
 space = currentProgram.getAddressFactory().getDefaultAddressSpace()
@@ -119,32 +116,34 @@ peripherals = parser.get_device().peripherals
 print("Generating memory regions...")
 # First, we need to generate a list of memory regions.
 # This is because some SVD files have overlapping peripherals...
+# (LPe) Memory regions are created based on the addressBlocks in a peripheral
 memory_regions = []
 for peripheral in peripherals:
-	start = peripheral.base_address
-	length = peripheral.address_block.offset + peripheral.address_block.size
-	end = peripheral.base_address + length
+	base = peripheral.base_address
+	blknum=1
+	if (peripheral.address_blocks):
+		for address_block in peripheral.address_blocks:
+			start=base+address_block.offset
+			length=address_block.size
+			memRegionName="{:s}:AdrBlk#{:02X}".format(peripheral.name, blknum)
+			memory_regions.append(MemoryRegion(memRegionName, start, start+length))
+			blknum=blknum+1
 
-	memory_regions.append(MemoryRegion(peripheral.name, start, end))
 memory_regions = reduce_memory_regions(memory_regions)
 
-print("Generating memory blocks...")
 # Create memory blocks:
 for r in memory_regions:
-	print("\t" + str(r))
 	try:
 		addr = space.getAddress(r.start)
 		length = r.length()
 
+		print("{:s} {:s} {:08X}".format(r.name, addr, length))
 		t = currentProgram.memory.createUninitializedBlock(r.name, addr, length, False)
 		t.setRead(True)
 		t.setWrite(True)
 		t.setExecute(False)
 		t.setVolatile(True)
 		t.setComment("Generated by SVD-Loader.")
-	except ghidra.program.model.mem.MemoryConflictException as e:
-		print("\tFailed to generate due to conflict in memory block for: " + r.name)
-		print("\t", e)
 	except Exception as e:
 		print("\tFailed to generate memory block for: " + r.name)
 		print("\t", e)
@@ -153,50 +152,46 @@ print("\tDone!")
 
 print("Generating peripherals...")
 for peripheral in peripherals:
-	print("\t" + peripheral.name)
 
+	print("\t" + peripheral.name)
 	if(len(peripheral.registers) == 0):
 		print("\t\tNo registers.")
 		continue
-
-	# try:
-	# Iterage registers to get size of peripheral
-	# Most SVDs have an address-block that specifies the size, but
-	# they are often far too large, leading to issues with overlaps.
-	length = calculate_peripheral_size(peripheral, default_register_size)
-
-	# Generate structure for the peripheral
-	peripheral_struct = StructureDataType(peripheral.name, length)
-
-	peripheral_start = peripheral.base_address
-	peripheral_end = peripheral_start + length
-	print("\t\t{}:{}".format(hex(peripheral_start), hex(peripheral_end)))
-
-	for register in peripheral.registers:
-		register_size = default_register_size if not register._size else register._size
-
-		r_type = UnsignedIntegerDataType()
-		rs = register_size / 8
-		if rs == 1:
-			r_type = ByteDataType()
-		elif rs == 2:
-			r_type = UnsignedShortDataType()
-		elif rs == 8:
-			r_type = UnsignedLongLongDataType()
-
-		print("\t\t\t{}({}:{})".format(register.name, hex(register.address_offset), hex(register.address_offset + register_size/8)))
-		peripheral_struct.replaceAtOffset(register.address_offset, r_type, register_size/8, register.name, register.description)
-
-
-	addr = space.getAddress(peripheral_start)
-
-
-	dtm.addDataType(peripheral_struct, DataTypeConflictHandler.REPLACE_HANDLER)
-	symtbl.createLabel(addr,
-					peripheral.name,
-					namespace,
-					SourceType.USER_DEFINED)
+	if(not peripheral.address_blocks):
+		continue
+	if (len(peripheral.address_blocks) == 0):
+		continue
 	try:
-		listing.createData(addr, peripheral_struct, False)
-	except:
+	# Iterage through addressBlock of a Peripheral.
+	# For each addressBlock create a pripheral strcuture with the name of the peripheral and the size of the actual addressBlock.
+	# For each addessBlock iterate through the registers of the peripheral and add a register, if the offset mathes to the address range of the current addressBlock.
+	# Enter the addressBlock specific peripheral to Ghidra.
+	# Since all these addressBlock-peripheral entries share the same same, they pop up as one name in Ghidra.
+		length = calculate_peripheral_size(peripheral, 32)
+		# Generate structure for the peripheral
+		peripheral_struct = StructureDataType(peripheral.name, length)
+		dtm.addDataType(peripheral_struct, DataTypeConflictHandler.REPLACE_HANDLER)
+
+		baseAdr=peripheral.base_address
+
+		for adrBlock in peripheral.address_blocks:
+			addr = space.getAddress(baseAdr+adrBlock.offset)
+			# Generate peripheral-strcuture for an address block
+			peripheral_blk_struct = StructureDataType(peripheral.name, adrBlock.size)
+			# iterate through all registers in the peripheral and add it to the addressBlock-peripheral structure
+			# when the register is part of this addressBlock.
+			addRegisters(peripheral_blk_struct, peripheral, 32)
+			addRegisters(peripheral_blk_struct, peripheral, 24)
+			addRegisters(peripheral_blk_struct, peripheral, 16)
+			addRegisters(peripheral_blk_struct, peripheral, 8)
+			try:
+				listing.createData(addr, peripheral_blk_struct, True)
+			except:
+				continue
+		symtbl.createLabel(addr,
+						peripheral.name,
+						namespace,
+						SourceType.USER_DEFINED );
+	except BaseException as e:
 		print("\t\tFailed to generate peripheral " + peripheral.name)
+		print e.message

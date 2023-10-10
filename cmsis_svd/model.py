@@ -108,14 +108,6 @@ class SVDElement(object):
     def get_derived_from(self):
         pass  # override in children
 
-    def _get_derived_from(self, entities, name):
-        for peripheral in entities:
-            if peripheral.name == name:
-                if peripheral.derived_from:
-                    return self._get_derived_from(entities, peripheral.derived_from)
-                return peripheral
-        raise KeyError("%s not found" % name)
-
     def to_dict(self):
         # This is a little convoluted but it works and ensures a
         # json-compatible dictionary representation (at the cost of
@@ -466,7 +458,7 @@ class SVDInterrupt(SVDElement):
 
 class SVDPeripheral(SVDElement):
     def __init__(self, name, version, derived_from, description,
-                 prepend_to_name, base_address, address_block,
+                 prepend_to_name, base_address, address_blocks,
                  interrupts, registers, register_arrays, size, access,
                  protection, reset_value, reset_mask,
                  group_name, append_to_name, disable_condition,
@@ -480,7 +472,7 @@ class SVDPeripheral(SVDElement):
         self._description = description
         self._prepend_to_name = prepend_to_name
         self._base_address = base_address
-        self._address_block = address_block
+        self._address_blocks = address_blocks
         self._interrupts = interrupts
         self._registers = registers
         self._register_arrays = register_arrays
@@ -514,19 +506,13 @@ class SVDPeripheral(SVDElement):
             regs.extend(cluster.registers)
         return regs
 
-    @property
-    def address_block(self):
-        if self._address_block:
-            return self._address_block
-        return self._lookup_possibly_derived_attribute('address_block')
-
     def get_derived_from(self):
         if self._derived_from is None:
             return None
 
         # find the peripheral with this name in the tree
         try:
-            return self._get_derived_from(self.parent.peripherals, self._derived_from)
+            return [p for p in self.parent.peripherals if p.name == self._derived_from][0]
         except IndexError:
             return None
 
@@ -566,10 +552,7 @@ class SVDDevice(SVDElement):
         self.version = version
         self.description = description
         self.cpu = cpu
-        if address_unit_bits is None:
-            self.address_unit_bits = 32
-        else:
-            self.address_unit_bits = _check_type(address_unit_bits, int)
+        self.address_unit_bits = _check_type(address_unit_bits, int)
         self.width = _check_type(width, int)
         self.peripherals = peripherals
         self.size = size  # Defines the default bit-width of any register contained in the device (implicit inheritance).
