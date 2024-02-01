@@ -4,7 +4,16 @@
 
 ## Installation
 
-Simply add the checked-out Git repository to your Ghidra-Scripts search paths.
+To add the checked-out Git repository to your Ghidra-Scripts search paths:
+- Open the 'CodeBrowser' from the 'Tool Chest'
+- Open Window -> Script Manager
+- In the new window click on the 'Manage Script Directories' icon on the top right of the window
+- In the new window click on the 'Display file chooser to add bundles to list' icon on the top right of the window
+- Select the folder containing your clone of the SVD-Loader-Ghidra repository
+- Close the Bundle Manager Window
+- Search for 'SVD' in your Script Manager
+- Check the checkbox for the 'SVD-Loader.py'
+- Close the Script Manager
 
 ## Usage
 
